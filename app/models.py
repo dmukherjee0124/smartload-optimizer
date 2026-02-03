@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, validator
 
 
 class Truck(BaseModel):
@@ -22,10 +22,10 @@ class Order(BaseModel):
     delivery_date: date
     is_hazmat: bool
 
-    @field_validator("delivery_date")
+    @validator("delivery_date")
     @classmethod
-    def delivery_not_before_pickup(cls, v: date, info):
-        pickup = info.data.get("pickup_date")
+    def delivery_not_before_pickup(cls, v: date, values):
+        pickup = values.get("pickup_date")
         if pickup is not None and v < pickup:
             raise ValueError("delivery_date must be >= pickup_date")
         return v
