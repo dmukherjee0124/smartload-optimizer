@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from typing import Dict, List, Tuple
+from functools import lru_cache
 
 from .models import Order, Truck, OptimizeResponse
 
@@ -29,8 +30,36 @@ class BestResult:
 def _round2(x: float) -> float:
     return round(x + 1e-12, 2)
 
+def _build_cache_key(truck: Truck, orders: List[Order]) -> tuple:
+    """
+    Build a stable, hashable cache key from request data.
+    This avoids caching on mutable Pydantic models directly.
+    """
+    orders_key = []
+    for o in orders:
+        orders_key.append((
+            o.id,
+            o.payout_cents,
+            o.weight_lbs,
+            o.volume_cuft,
+            o.origin,
+            o.destination,
+            _date2i(o.pickup_date),
+            _date2i(o.delivery_date),
+            o.is_hazmat,
+        ))
 
-def optimize(truck: Truck, orders: List[Order]) -> OptimizeResponse:
+    # Order-independent cache key
+    orders_key.sort()
+
+    return (
+        truck.max_weight_lbs,
+        truck.max_volume_cuft,
+        tuple(orders_key),
+    )
+
+
+def  _optimize_uncached(truck: Truck, orders: List[Order]) -> OptimizeResponse:
     """
     Optimize order selection for a given truck and list of orders.
     Uses bitmask dynamic programming to find the best subset of orders
@@ -78,6 +107,72 @@ def optimize(truck: Truck, orders: List[Order]) -> OptimizeResponse:
         utilization_volume_percent=_round2(util_v),
     )
 
+def _build_cache_key(truck: Truck, orders: List[Order]) -> tuple:
+    """
+    Build a stable, hashable cache key from request data.
+    Avoids caching on mutable Pydantic models directly.
+    """
+    orders_key = []
+    for o in orders:
+        orders_key.append((
+            o.id,
+            o.payout_cents,
+            o.weight_lbs,
+            o.volume_cuft,
+            o.origin,
+            o.destination,
+            _date2i(o.pickup_date),
+            _date2i(o.delivery_date),
+            o.is_hazmat,
+        ))
+
+    # Order-independent key
+    orders_key.sort()
+
+    return (
+        truck.max_weight_lbs,
+        truck.max_volume_cuft,
+        tuple(orders_key),
+    )
+
+@lru_cache(maxsize=512)
+def _optimize_cached(cache_key: tuple) -> OptimizeResponse:
+    """
+    Cached entry point.
+    Safe because cache_key is fully immutable.
+    """
+    max_weight, max_volume, orders_key = cache_key
+
+    truck = Truck(
+        id="cached-truck",
+        max_weight_lbs=max_weight,
+        max_volume_cuft=max_volume,
+    )
+
+    orders = [
+        Order(
+            id=o[0],
+            payout_cents=o[1],
+            weight_lbs=o[2],
+            volume_cuft=o[3],
+            origin=o[4],
+            destination=o[5],
+            pickup_date=date.fromordinal(o[6]),
+            delivery_date=date.fromordinal(o[7]),
+            is_hazmat=o[8],
+        )
+        for o in orders_key
+    ]
+
+    return _optimize_uncached(truck, orders)
+
+def optimize(truck: Truck, orders: List[Order]) -> OptimizeResponse:
+    """
+    Public optimizer entry point.
+    Uses in-memory memoization to speed up repeated identical requests.
+    """
+    cache_key = _build_cache_key(truck, orders)
+    return _optimize_cached(cache_key)
 
 def _best_subset_for_group(truck: Truck, grp: List[Order]) -> BestResult:
     """
