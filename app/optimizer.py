@@ -32,14 +32,8 @@ def _round2(x: float) -> float:
 
 def optimize(truck: Truck, orders: List[Order]) -> OptimizeResponse:
     """
-    Optimize by selecting a subset of orders that maximizes payout_cents while:
-      - staying within truck weight/volume
-      - respecting compatibility (route, hazmat isolation, time-window overlap)
-
-    Approach:
-      - n is small (<= ~22), so a bitmask DP over subsets is practical.
-      - To reduce work further, we group orders by (origin, destination, is_hazmat),
-        because different lanes and hazmat/non-hazmat can't be mixed.
+    Optimize order selection for a given truck and list of orders.
+    Uses bitmask dynamic programming to find the best subset of orders
     """
     if not orders:
         return OptimizeResponse(
@@ -92,10 +86,6 @@ def _best_subset_for_group(truck: Truck, grp: List[Order]) -> BestResult:
     bitmask:
       - represent a subset of m orders as an integer mask in [0, 2^m).
       - if bit i is 1 -> order i is included.
-
-    Incremental trick:
-      - For each mask, take its lowest set bit (LSB) and build mask from prev = mask ^ LSB.
-      - That makes totals O(1) per mask instead of re-summing items.
     """
     m = len(grp)
     if m == 0:
@@ -114,8 +104,6 @@ def _best_subset_for_group(truck: Truck, grp: List[Order]) -> BestResult:
     p = [0] * size
 
     # Time-window aggregation:
-    #   max pickup across chosen orders
-    #   min delivery across chosen orders
     # Feasible if max_pickup <= min_delivery (there exists an overlap window).
     max_pick = [0] * size
     INF = 10**18
