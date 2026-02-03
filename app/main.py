@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.models import OptimizeRequest
+from app.optimizer import optimize as run_optimizer
 
 app = FastAPI()
 
@@ -10,13 +11,5 @@ def healthz():
 
 @app.post("/api/v1/load-optimizer/optimize")
 def optimize(req: OptimizeRequest):
-    return {
-        "truck_id": req.truck.id,
-        "selected_order_ids": [],
-        "total_payout_cents": 0,
-        "total_weight_lbs": 0,
-        "total_volume_cuft": 0,
-        "utilization_weight_percent": 0.0,
-        "utilization_volume_percent": 0.0
-    }
-
+    # Step 4: algorithm-only implementation (validation + caching come next)
+    return run_optimizer(req.truck, req.orders)
