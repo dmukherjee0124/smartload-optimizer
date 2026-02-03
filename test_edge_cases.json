@@ -1,0 +1,8 @@
+{
+  "truck": {
+    "id": "truck-123",
+    "max_weight_lbs": 44000,
+    "max_volume_cuft": 3000
+  },
+  "orders": []
+}
