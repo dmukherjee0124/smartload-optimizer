@@ -4,6 +4,8 @@ from app.optimizer import optimize as run_optimizer
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
+MAX_BODY_BYTES = 1_000_000  # 1 MB
+
 
 app = FastAPI()
 
@@ -13,6 +15,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=400,
         content={"detail": exc.errors()},
     )
+
+@app.middleware("http")
+async def limit_payload_size(request: Request, call_next):
+    body = await request.body()
+    if len(body) > MAX_BODY_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "Payload too large"})
+    request._body = body  # cache body so downstream can read it
+    return await call_next(request)
 
 @app.get("/healthz")
 def healthz():
