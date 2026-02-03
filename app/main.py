@@ -1,8 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from app.models import OptimizeRequest
 from app.optimizer import optimize as run_optimizer
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+
 
 app = FastAPI()
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": exc.errors()},
+    )
 
 @app.get("/healthz")
 def healthz():
